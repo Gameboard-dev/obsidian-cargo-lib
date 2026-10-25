@@ -8,7 +8,7 @@
 # whichever plugins are present are members.
 [workspace]
 resolver = "2"
-members = ["shared", "pack", "*/core", "*/schema"]
+members = ["shared", "pack", "*/core", "*/schema", "*/note"]
 exclude = ["augmented-view/server", "native-kit", "scholar/service"]
 
 # Builds (https://doc.rust-lang.org/cargo/reference/profiles.html). Dependencies are compiled once and kept in target/;
