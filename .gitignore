@@ -1,0 +1,7 @@
+# The workspace's build output, and this machine's build settings (.cargo/config.toml: compiler paths, target CPU).
+target/
+.cargo/
+# Each plugin is a repository of its own, cloned into this folder (README.md).
+/*/
+!/shared/
+!/pack/

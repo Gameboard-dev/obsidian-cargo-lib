@@ -1,0 +1,6 @@
+[package]
+name = "pack"
+version = "0.1.0"
+edition = "2021"
+description = "Builds Augmented View: the crate to WebAssembly, its bindings stored inside the .wasm, optionally copied to the vault"
+publish = false

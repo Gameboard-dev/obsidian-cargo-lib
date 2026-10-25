@@ -1,0 +1,31 @@
+# The Rust Obsidian plugins in this folder, one workspace: the shared crate (shared/), each plugin's WebAssembly crate,
+# and the build tool (pack/). Dependencies are compiled once for all of them, in target/. Augmented View's model server
+# (augmented-view/server) is a native program with its own workspace and build settings.
+#
+# This folder is the repository obsidian-kit; each plugin is a repository of its own, cloned into it (README.md), and
+# whichever plugins are present are members.
+[workspace]
+resolver = "2"
+members = ["shared", "pack", "*/core"]
+exclude = ["augmented-view/server"]
+
+# Builds (https://doc.rust-lang.org/cargo/reference/profiles.html). Dependencies are compiled once and kept in target/;
+# only a changed crate is rebuilt.
+#
+# release: the build that is shipped (`cargo run -p pack --release -- <plugin>`): full optimisation, each plugin and its
+# dependencies optimised together (fat LTO, one codegen unit). Binaryen's wasm-opt was measured on top (2026-10-24):
+# 6% smaller at -O2/-O3/-O4 but 5-10% slower on Augmented View's splitting and hashing, so it is not used.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# fast: the same optimisation level for quick builds while working (`-- <plugin> --fast`): thin LTO, parallel code
+# generation and incremental compilation, so a change rebuilds in a few seconds.
+[profile.fast]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+incremental = true
