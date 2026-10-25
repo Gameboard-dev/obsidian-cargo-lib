@@ -1,0 +1,28 @@
+[package]
+name = "native-kit"
+version = "0.1.0"
+edition = "2021"
+description = "What the plugins' native servers share: the hardware (device choice with reasons, readings, GPU pacing, fallbacks)"
+publish = false
+# Its build script passes the CUDA libraries a server must delay-load on to that server's build script, which links it
+# (DEP_NATIVE_KIT_DELAYLOAD, <https://doc.rust-lang.org/cargo/reference/build-scripts.html#the-links-manifest-key>):
+# link arguments from a dependency's build script do not reach the binary.
+links = "native-kit"
+
+# `candle`: placing models on candle's devices and pacing their GPU work (Augmented View's server; Scholar's from its
+# phase 2). `cuda`: NVIDIA's readings and the CUDA checks. `metal`: Apple's GPU. With none, the CPU only.
+[features]
+candle = ["dep:candle-core"]
+cuda = ["dep:nvml-wrapper", "dep:libloading", "candle-core?/cuda"]
+metal = ["candle-core?/metal"]
+
+[dependencies]
+candle-core = { version = "0.11", optional = true }
+serde_json = "1"
+# NVIDIA's management library for the GPU's memory, load, power and temperature (<https://docs.rs/nvml-wrapper>); it is
+# loaded at run time from the driver, so a machine without one simply reports no GPU.
+nvml-wrapper = { version = "0.13", optional = true }
+# Checks that CUDA's libraries are present before the delay-loaded ones are used; nvml-wrapper's dependency.
+libloading = { version = "0.8", optional = true }
+# Memory and CPU use of the machine and the server (<https://docs.rs/sysinfo>).
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }

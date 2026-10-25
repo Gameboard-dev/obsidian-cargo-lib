@@ -5,3 +5,6 @@ target/
 /*/
 !/shared/
 !/pack/
+
+# The workspace's shared native crate (hardware readings and device choice for the plugins' servers).
+!/native-kit/

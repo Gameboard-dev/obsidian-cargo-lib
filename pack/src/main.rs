@@ -4,7 +4,8 @@
 //! file. Writes `<plugin>/<plugin_with_underscores>.wasm` (augmented_view.wasm, dictionary_and_synonyms.wasm).
 //!
 //! - `--fast` builds with the `fast` profile (thin LTO, incremental; ../Cargo.toml) instead of `release`.
-//! - `--server` also builds the plugin's server (`<plugin>/server`, Augmented View's) for this computer: CUDA, or Metal on macOS.
+//! - `--server` also builds the plugin's server (`<plugin>/server`, Augmented View's; `<plugin>/service`, Scholar's) for this
+//!   computer: CUDA, or Metal on macOS.
 //! - `--cpu-server` also builds its CPU-only version, into server/target/cpu (Augmented View's fallback, `cpuServer`).
 //! - `--deploy DIR` copies the plugin into DIR, a vault's `.obsidian/plugins/<plugin>` (or the folder in the environment
 //!   variable `<PLUGIN>_DEPLOY`, e.g. AUGMENTED_VIEW_DEPLOY). Servers are not copied: point the plugin's settings at them.
@@ -78,9 +79,11 @@ fn main() {
         println!("{stem}.wasm: {} KB ({} KB of it bindings), {profile} build", wasm.len() / 1024, glue.len() / 1024);
     }
 
-    // A server: its own workspace (server/.cargo/config.toml, and any machine settings in a parent folder).
-    let server = plugin.join("server");
-    let exe = format!("{name}-server{}", std::env::consts::EXE_SUFFIX);
+    // A server: its own workspace (server/.cargo/config.toml, and any machine settings in a parent folder), in
+    // `<plugin>/server` (Augmented View's) or `<plugin>/service` (Scholar's), built as `<plugin>-server` or `-service`.
+    let kind = if plugin.join("service").exists() { "service" } else { "server" };
+    let server = plugin.join(kind);
+    let exe = format!("{name}-{kind}{}", std::env::consts::EXE_SUFFIX);
     if flag("--server") {
         let gpu: &[&str] = if cfg!(target_os = "macos") { &["--no-default-features", "--features", "metal"] } else { &[] };
         run(Command::new("cargo").current_dir(&server).args(["build", "--release"]).args(gpu));

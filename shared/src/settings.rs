@@ -17,6 +17,8 @@ pub enum Ctl {
     Number,
     /// A dropdown of (value, label) pairs.
     Choice(fn() -> Vec<(&'static str, &'static str)>),
+    /// A dropdown of (value, label) pairs given as a table (a settings schema's).
+    Options(&'static [(&'static str, &'static str)]),
     /// A link (the plugin's README, say), shown after the description and opened in the browser.
     Link(&'static str),
     /// Anything else: the plugin fills the Setting it is given.
@@ -28,13 +30,27 @@ pub type Row = (&'static str, &'static str, &'static str, Ctl);
 /// Fill `tab` (a PluginSettingTab) with `rows`: each control shows `get(key)` and calls `set(key, value)` on a change
 /// (numbers as numbers, text trimmed).
 pub fn render(tab: &JsValue, obsidian: &JsValue, rows: &'static [Row], get_value: impl Fn(&str) -> JsValue, set_value: fn(&'static str, JsValue)) {
+    render_with(tab, obsidian, rows, get_value, set_value, |_| None);
+}
+
+/// `render`, with what the plugin knows only while it runs: for a key, `state` may return whether its control is
+/// disabled (Setting.setDisabled) and a sentence added to its description (why, or what was found).
+pub fn render_with(
+    tab: &JsValue,
+    obsidian: &JsValue,
+    rows: &'static [Row],
+    get_value: impl Fn(&str) -> JsValue,
+    set_value: fn(&'static str, JsValue),
+    state: impl Fn(&str) -> Option<(bool, String)>,
+) {
     let el = get(tab, "containerEl");
     call!(el, empty);
     let setting = get(obsidian, "Setting");
     for (key, name, desc, ctl) in rows {
         let (key, s) = (*key, new(&setting, &[el.clone()]));
         call!(s, setName, *name);
-        call!(s, setDesc, *desc);
+        let (disabled, extra) = state(key).unwrap_or_default();
+        call!(s, setDesc, if extra.is_empty() { desc.to_string() } else { format!("{desc} {extra}").trim().to_string() });
         let value = get_value(key);
         let changed = move |v: JsValue| {
             set_value(key, v);
@@ -50,6 +66,15 @@ pub fn render(tab: &JsValue, obsidian: &JsValue, rows: &'static [Row], get_value
                 call!(get(&s, "descEl"), appendChild, a);
             }
             Ctl::Custom(fill) => fill(&s),
+            Ctl::Options(options) => {
+                let options = *options;
+                call!(s, addDropdown, f1(move |d| {
+                    for (v, label) in options {
+                        call!(d, addOption, *v, *label);
+                    }
+                    call!(call!(d, setValue, value.clone()), onChange, f1(changed))
+                }));
+            }
             Ctl::Choice(options) => {
                 let options = *options;
                 call!(s, addDropdown, f1(move |d| {
@@ -73,6 +98,9 @@ pub fn render(tab: &JsValue, obsidian: &JsValue, rows: &'static [Row], get_value
                     call!(t, onChange, f1(move |v| changed(if number { str(&v).trim().parse::<f64>().unwrap_or(0.0).into() } else { str(&v).trim().into() })))
                 }));
             }
+        }
+        if disabled {
+            call!(s, setDisabled, true);
         }
     }
 }
