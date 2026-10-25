@@ -9,6 +9,9 @@
 //! - `--cpu-server` also builds its CPU-only version, into server/target/cpu (Augmented View's fallback, `cpuServer`).
 //! - `--deploy DIR` copies the plugin into DIR, a vault's `.obsidian/plugins/<plugin>` (or the folder in the environment
 //!   variable `<PLUGIN>_DEPLOY`, e.g. AUGMENTED_VIEW_DEPLOY). Servers are not copied: point the plugin's settings at them.
+//! - `--release DIR` writes the release's assets into DIR: main.js, manifest.json and styles.css, the only files
+//!   Obsidian installs from a release. A main.js with the line `const WASM = null;` gets the module there, base64-encoded
+//!   (so does a deployed one), and the .wasm is then not needed beside it.
 //! - Nothing is regenerated when the compiled module is unchanged (its hash is kept in target/pack/<plugin>.stamp).
 //!
 //! WebAssembly SIMD (simd128) is on for every plugin: every runtime they meet has it (Obsidian's Electron, Chrome/Edge
@@ -30,6 +33,25 @@ const SIMD: &str = "target.wasm32-unknown-unknown.rustflags=[\"-C\", \"target-fe
 fn run(cmd: &mut Command) {
     let ok = cmd.status().unwrap_or_else(|e| panic!("{cmd:?}: {e}")).success();
     assert!(ok, "{cmd:?} failed");
+}
+
+/// main.js with the module written into its `const WASM = null;` line, base64-encoded (RFC 4648,
+/// <https://www.rfc-editor.org/rfc/rfc4648#section-4>); as it is when it has no such line.
+fn bundle(main_js: &Path, wasm: &Path) -> String {
+    let js = fs::read_to_string(main_js).unwrap();
+    if !js.contains("const WASM = null;") {
+        return js;
+    }
+    const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes = fs::read(wasm).unwrap();
+    let mut out = String::with_capacity(bytes.len() * 4 / 3 + 4);
+    for c in bytes.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for i in 0..4 {
+            out.push(if i <= c.len() { B64[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    js.replace("const WASM = null;", &format!("const WASM = \"{out}\";"))
 }
 
 /// Unsigned LEB128, as WebAssembly encodes sizes (<https://webassembly.github.io/spec/core/binary/values.html#integers>).
@@ -94,13 +116,31 @@ fn main() {
         println!("CPU server: {}", server.join("target/cpu/release").join(&exe).display());
     }
 
+    let main_js = bundle(&plugin.join("main.js"), &plugin.join(format!("{stem}.wasm")));
+    let inlined = main_js.contains("const WASM = \"");
+    if let Some(i) = args.iter().position(|a| a == "--release") {
+        let dir = args.get(i + 1).filter(|d| !d.starts_with("--")).cloned().unwrap_or_else(|| panic!("--release needs a folder"));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(Path::new(&dir).join("main.js"), &main_js).unwrap();
+        for f in ["manifest.json", "styles.css"] {
+            fs::copy(plugin.join(f), Path::new(&dir).join(f)).unwrap();
+        }
+        println!("release assets in {dir}{}", if inlined { " (module inlined in main.js)" } else { "" });
+    }
     if let Some(i) = args.iter().position(|a| a == "--deploy") {
         let env = format!("{}_DEPLOY", name.replace('-', "_").to_uppercase());
         let dir = args.get(i + 1).filter(|d| !d.starts_with("--")).cloned().or_else(|| std::env::var(&env).ok());
         let dir = dir.unwrap_or_else(|| panic!("--deploy needs the plugin's folder in a vault: --deploy <vault>/.obsidian/plugins/{name} (or {env})"));
         fs::create_dir_all(&dir).unwrap();
-        for f in ["main.js", "manifest.json", "styles.css", &format!("{stem}.wasm")] {
+        fs::write(Path::new(&dir).join("main.js"), &main_js).unwrap();
+        for f in ["manifest.json", "styles.css"] {
             fs::copy(plugin.join(f), Path::new(&dir).join(f)).unwrap();
+        }
+        let wasm = format!("{stem}.wasm");
+        if inlined {
+            _ = fs::remove_file(Path::new(&dir).join(&wasm)); // an older deploy's
+        } else {
+            fs::copy(plugin.join(&wasm), Path::new(&dir).join(&wasm)).unwrap();
         }
         println!("copied to {dir}");
     }
