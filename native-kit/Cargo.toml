@@ -12,7 +12,9 @@ links = "native-kit"
 # `candle`: placing models on candle's devices and pacing their GPU work (Augmented View's server; Scholar's from its
 # phase 2). `cuda`: NVIDIA's readings and the CUDA checks. `metal`: Apple's GPU. With none, the CPU only.
 [features]
-candle = ["dep:candle-core"]
+candle = ["dep:candle-core", "models"]
+# `models`: finding model files in the Hugging Face cache, or downloading them.
+models = ["dep:ureq"]
 cuda = ["dep:nvml-wrapper", "dep:libloading", "candle-core?/cuda"]
 metal = ["candle-core?/metal"]
 
@@ -26,3 +28,6 @@ nvml-wrapper = { version = "0.13", optional = true }
 libloading = { version = "0.8", optional = true }
 # Memory and CPU use of the machine and the server (<https://docs.rs/sysinfo>).
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+# Downloads of models the machine lacks, with the operating system's certificate store
+# (<https://docs.rs/ureq/latest/ureq/tls/enum.RootCerts.html>).
+ureq = { version = "3", features = ["platform-verifier"], optional = true }
