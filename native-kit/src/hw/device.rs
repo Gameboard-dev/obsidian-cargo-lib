@@ -8,7 +8,7 @@ use candle_core::Device;
 
 use super::{available_ram_mb, cuda_libraries, gpu_name, note, nvidia, GATE, LIMIT, MB};
 
-const GPU_MARGIN_MB: u64 = 300; // left free for the display, other programs and the models' working memory
+pub const GPU_MARGIN_MB: u64 = 300; // left free for the display, other programs and the models' working memory
 
 /// The GPU, opened once: CUDA, else Metal; or why there is none.
 fn gpu() -> &'static Result<(Device, String), String> {
@@ -74,4 +74,10 @@ pub fn paced<R>(device: &Device, f: impl FnOnce() -> R) -> R {
         std::thread::sleep(t.elapsed() * (100 - limit) / limit);
     }
     r
+}
+
+/// Free memory of the GPU the models would use, in MB, or None without one (to choose between a model's sizes before
+/// placing it).
+pub fn gpu_free_mb() -> Option<u64> {
+    gpu().as_ref().ok().and_then(|(d, _)| free_gpu_mb(d))
 }

@@ -20,7 +20,7 @@ use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 #[cfg(feature = "candle")]
 mod device;
 #[cfg(feature = "candle")]
-pub use device::{free_gpu_mb, paced, place};
+pub use device::{free_gpu_mb, gpu_free_mb, paced, place, GPU_MARGIN_MB};
 
 pub const MB: u64 = 1 << 20;
 
