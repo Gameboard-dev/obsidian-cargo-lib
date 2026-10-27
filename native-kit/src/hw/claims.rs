@@ -105,6 +105,35 @@ pub fn shortage(service: &str, what: &str, need_mb: u64) -> Option<Value> {
     Some(json!({ "what": what, "need_mb": need_mb + super::GPU_MARGIN_MB, "free_mb": free, "others_mb": held, "others": others.len(), "holders": holders }))
 }
 
+/// What a service does before loading models that need `need` MB of GPU memory, by the user's answer (`mode`): every
+/// GPU service of the workspace decides this way (user, 2026-10-27).
+#[derive(Debug, PartialEq)]
+pub enum Room {
+    /// Load on the GPU (there is room, or the user's other services were asked to free theirs).
+    Gpu,
+    /// The user chose the CPU.
+    Cpu,
+    /// Not enough room and no answer yet: the plugin asks the user (the shortage, as `shortage` gives it).
+    Ask(Value),
+}
+
+/// `mode`: "free" (have the user's other GPU services let go, then the GPU), "cpu", or anything else (ask when short).
+pub fn room(service: &str, what: &str, need_mb: u64, mode: &str) -> Room {
+    if need_mb == 0 {
+        return Room::Gpu;
+    }
+    match mode {
+        "cpu" => Room::Cpu,
+        "free" => {
+            if !release_others(service, need_mb, std::time::Duration::from_secs(20)) {
+                eprintln!("{service}: the GPU still has too little free memory after asking the other services; {what} load where they fit");
+            }
+            Room::Gpu
+        }
+        _ => shortage(service, what, need_mb).map_or(Room::Gpu, Room::Ask),
+    }
+}
+
 /// A service's plugin as the user knows it.
 pub fn display_name(service: &str) -> &str {
     match service {
