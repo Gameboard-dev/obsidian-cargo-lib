@@ -20,7 +20,7 @@ use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 #[cfg(feature = "candle")]
 mod device;
 #[cfg(feature = "candle")]
-pub use device::{free_gpu_mb, gpu_free_mb, paced, paced_at, place, place_within, GPU_MARGIN_MB};
+pub use device::{bind, free_gpu_mb, gpu_free_mb, paced, paced_at, place, place_within, GPU_MARGIN_MB};
 #[cfg(feature = "candle")]
 pub mod claims;
 

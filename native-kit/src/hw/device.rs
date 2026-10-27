@@ -74,6 +74,18 @@ pub fn paced<R>(device: &Device, f: impl FnOnce() -> R) -> R {
     paced_at(device, LIMIT.load(Ordering::Relaxed), f)
 }
 
+/// Make the device's CUDA context this thread's current one, before anything touches the GPU on it (a tensor made, a
+/// cache cleared): a request may run on any of the server's threads, and one without the context fails with
+/// CUDA_ERROR_INVALID_CONTEXT (user, 2026-10-27: seen in the Search pane while the service ran on CUDA).
+pub fn bind(device: &Device) {
+    #[cfg(feature = "cuda")]
+    if let Device::Cuda(d) = device {
+        _ = d.cuda_stream().context().bind_to_thread();
+    }
+    #[cfg(not(feature = "cuda"))]
+    let _ = device;
+}
+
 /// As `paced`, with a load limit of its own (work in the background, such as indexing, kept gentler than a search the
 /// user waits for).
 pub fn paced_at<R>(device: &Device, limit: u32, f: impl FnOnce() -> R) -> R {
