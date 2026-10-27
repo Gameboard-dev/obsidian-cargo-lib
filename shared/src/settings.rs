@@ -46,6 +46,34 @@ pub fn render_with(
     let el = get(tab, "containerEl");
     call!(el, empty);
     let setting = get(obsidian, "Setting");
+    // a tab with several sections opens with their contents: a link to each, which scrolls to its heading
+    let heads: Vec<&str> = rows.iter().filter(|r| matches!(r.3, Ctl::Head)).map(|r| r.1).collect();
+    let targets: std::rc::Rc<std::cell::RefCell<Vec<JsValue>>> = Default::default();
+    if heads.len() >= 3 {
+        let doc = get(&crate::js::global(), "document");
+        let c = new(&setting, &[el.clone()]);
+        call!(call!(c, setName, "Settings contents"), setHeading);
+        let list = call!(doc, createElement, "div");
+        set(&list, "className", "setting-contents");
+        for (i, name) in heads.iter().enumerate() {
+            let a = call!(doc, createElement, "a");
+            set(&a, "textContent", *name);
+            set(&a, "href", "#");
+            let t = targets.clone();
+            call!(a, addEventListener, "click", f1(move |e| {
+                call!(e, preventDefault);
+                if let Some(h) = t.borrow().get(i) {
+                    call!(h, scrollIntoView, crate::js::obj! { behavior: "smooth", block: "start" });
+                }
+                JsValue::UNDEFINED
+            }));
+            call!(list, appendChild, a);
+            if i + 1 < heads.len() {
+                call!(list, appendChild, call!(doc, createTextNode, " \u{b7} "));
+            }
+        }
+        call!(get(&c, "descEl"), appendChild, list);
+    }
     for (key, name, desc, ctl) in rows {
         let (key, s) = (*key, new(&setting, &[el.clone()]));
         call!(s, setName, *name);
@@ -57,7 +85,10 @@ pub fn render_with(
             JsValue::UNDEFINED
         };
         match ctl {
-            Ctl::Head => _ = call!(s, setHeading),
+            Ctl::Head => {
+                call!(s, setHeading);
+                targets.borrow_mut().push(get(&s, "settingEl"));
+            }
             Ctl::Note => {}
             Ctl::Link(url) => {
                 let a = call!(get(&crate::js::global(), "document"), createElement, "a");

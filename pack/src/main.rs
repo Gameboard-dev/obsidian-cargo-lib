@@ -1,6 +1,7 @@
 //! `cargo run -p pack --release -- <plugin> [--fast] [--server] [--cpu-server] [--deploy DIR]`, from this folder's
 //! parent: builds a plugin's crate (`<plugin>/core`) to WebAssembly, generates its JavaScript bindings with
-//! wasm-bindgen, and stores them inside the .wasm as a custom section named "glue", so main.js stays the only JavaScript
+//! wasm-bindgen, writes them into the main.js it deploys or releases (no eval at run time) and keeps them in the .wasm as a
+//! custom section named "glue" too (for a worker's script), so main.js stays the only JavaScript
 //! file. Writes `<plugin>/<plugin_with_underscores>.wasm` (augmented_view.wasm, dictionary_and_synonyms.wasm).
 //!
 //! - `--fast` builds with the `fast` profile (thin LTO, incremental; ../Cargo.toml) instead of `release`.
@@ -37,8 +38,28 @@ fn run(cmd: &mut Command) {
 
 /// main.js with the module written into its `const WASM = null;` line, base64-encoded (RFC 4648,
 /// <https://www.rfc-editor.org/rfc/rfc4648#section-4>); as it is when it has no such line.
-fn bundle(main_js: &Path, wasm: &Path) -> String {
-    let js = fs::read_to_string(main_js).unwrap();
+/// The source main.js evaluates the bindings it reads from the module (`new Function`, fine while developing); the
+/// main.js that is deployed or released has them written in (`glue`, wasm-bindgen's no-modules script, which defines
+/// `wasm_bindgen`), so a plugin evaluates no code from a string at run time (user, 2026-10-27: no eval). The custom
+/// section stays in the .wasm for a worker's script (Augmented View's, Dictionary's), which starts from a Blob.
+const EVAL_GLUE: &str = "new Function(`${glue}\\nreturn wasm_bindgen;`)()";
+
+fn inline_glue(js: &str, glue: &str) -> String {
+    if !js.contains(EVAL_GLUE) {
+        return js.to_string();
+    }
+    let at = js.find("module.exports").expect("main.js exports its plugin class");
+    let mut out = String::with_capacity(js.len() + glue.len() + 200);
+    out.push_str(&js[..at]);
+    out.push_str("// wasm-bindgen's bindings for the .wasm, written in by pack (they define wasm_bindgen)\n");
+    out.push_str(glue.trim_end());
+    out.push_str("\n\n");
+    out.push_str(&js[at..].replacen(EVAL_GLUE, "wasm_bindgen", 1));
+    out
+}
+
+fn bundle(main_js: &Path, wasm: &Path, glue: &str) -> String {
+    let js = inline_glue(&fs::read_to_string(main_js).unwrap(), glue);
     if !js.contains("const WASM = null;") {
         return js;
     }
@@ -116,7 +137,8 @@ fn main() {
         println!("CPU server: {}", server.join("target/cpu/release").join(&exe).display());
     }
 
-    let main_js = bundle(&plugin.join("main.js"), &plugin.join(format!("{stem}.wasm")));
+    let glue = fs::read_to_string(out.join(format!("{stem}_core.js"))).expect("the bindings wasm-bindgen wrote");
+    let main_js = bundle(&plugin.join("main.js"), &plugin.join(format!("{stem}.wasm")), &glue);
     let inlined = main_js.contains("const WASM = \"");
     if let Some(i) = args.iter().position(|a| a == "--release") {
         let dir = args.get(i + 1).filter(|d| !d.starts_with("--")).cloned().unwrap_or_else(|| panic!("--release needs a folder"));
@@ -124,6 +146,26 @@ fn main() {
         fs::write(Path::new(&dir).join("main.js"), &main_js).unwrap();
         for f in ["manifest.json", "styles.css"] {
             fs::copy(plugin.join(f), Path::new(&dir).join(f)).unwrap();
+        }
+        // A plugin's program (Scholar's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
+        // its `.sha256`, for a release named `<plugin>-<kind>-v<version>`.
+        let built = server.join("target/release").join(&exe);
+        if built.exists() {
+            use sha2::Digest;
+            let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+                ("windows", "x86_64") => "windows-x64",
+                ("linux", "x86_64") => "linux-x64",
+                ("macos", "aarch64") => "macos-arm64",
+                ("macos", "x86_64") => "macos-x64",
+                (os, arch) => panic!("no release name for {os} {arch}"),
+            };
+            let asset = format!("{name}-{kind}-{platform}{}", std::env::consts::EXE_SUFFIX);
+            let bytes = fs::read(&built).unwrap();
+            let hash: String = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+            fs::write(Path::new(&dir).join(&asset), &bytes).unwrap();
+            fs::write(Path::new(&dir).join(format!("{asset}.sha256")), format!("{hash}  {asset}
+")).unwrap();
+            println!("{asset}: SHA-256 {hash} (publish both under the release {name}-{kind}-v<version>)");
         }
         println!("release assets in {dir}{}", if inlined { " (module inlined in main.js)" } else { "" });
     }

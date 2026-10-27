@@ -20,7 +20,14 @@ use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 #[cfg(feature = "candle")]
 mod device;
 #[cfg(feature = "candle")]
-pub use device::{free_gpu_mb, gpu_free_mb, paced, place, GPU_MARGIN_MB};
+pub use device::{free_gpu_mb, gpu_free_mb, paced, paced_at, place, place_within, GPU_MARGIN_MB};
+#[cfg(feature = "candle")]
+pub mod claims;
+
+/// The GPU's free memory now, in MB (NVIDIA's, all programs together), or None without one.
+pub fn device_free_mb() -> Option<u64> {
+    nvidia().map(|(m, _)| m.free / MB)
+}
 
 pub const MB: u64 = 1 << 20;
 
@@ -230,6 +237,74 @@ pub fn choose(hw: &Hardware, use_gpu: bool) -> String {
             note(format!("on the CPU: {why}"));
             "CPU".into()
         }
+    }
+}
+
+/// The settings that suit this computer (Optimize For Current Hardware, user 2026-10-27): what a GPU of this size
+/// can take at once, or the CPU's modest batches. Each plugin applies the ones it has.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Recommended {
+    pub use_gpu: bool,
+    /// The most GPU memory a service's models may hold (MB): four fifths of the GPU, the rest for the display, other
+    /// programs and the other plugin's models (0 when there is no GPU to use).
+    pub gpu_budget_mb: u64,
+    /// Tokens sent to the embedding model in one pass.
+    pub tokens_per_pass: u64,
+    /// Pages the PDF converter reads together.
+    pub pages_together: u64,
+    /// PDFs converted before the queue indexes them.
+    pub files_per_batch: u64,
+    /// Paragraphs Augmented View prepares around the ones on screen.
+    pub context_paragraphs: u64,
+}
+
+pub fn recommend(h: &Hardware) -> Recommended {
+    let gpu_mb = h.gpu_mb.filter(|_| h.usable.is_ok());
+    let Some(mb) = gpu_mb else {
+        return Recommended { use_gpu: false, gpu_budget_mb: 0, tokens_per_pass: 1024, pages_together: 2, files_per_batch: 2, context_paragraphs: 2 };
+    };
+    // tiers by the GPU's memory: under 6 GB, 6-7.5 GB, 7.5-15 GB (an 8 GB card reports a little under 8192), 15 GB on
+    let tier = [6_000u64, 7_500, 15_000].iter().filter(|&&t| mb >= t).count();
+    let pick = |v: [u64; 4]| v[tier];
+    // a Metal GPU shares the computer's memory: its budget is half of it
+    let total = if h.build == "metal" { h.ram_mb / 2 } else { mb };
+    Recommended {
+        use_gpu: true,
+        gpu_budget_mb: (total * 4 / 5) / 256 * 256,
+        tokens_per_pass: pick([2048, 4096, 8192, 16384]),
+        pages_together: pick([2, 4, 8, 16]),
+        files_per_batch: pick([4, 8, 8, 16]),
+        context_paragraphs: pick([4, 6, 10, 16]),
+    }
+}
+
+impl Recommended {
+    pub fn json(&self) -> Value {
+        json!({ "use_gpu": self.use_gpu, "gpu_budget_mb": self.gpu_budget_mb, "tokens_per_pass": self.tokens_per_pass,
+            "pages_together": self.pages_together, "files_per_batch": self.files_per_batch, "context_paragraphs": self.context_paragraphs })
+    }
+}
+
+#[cfg(test)]
+mod recommend_tests {
+    use super::*;
+
+    fn hw(gpu_mb: Option<u64>, ok: bool) -> Hardware {
+        Hardware { build: "cuda", gpu: gpu_mb.map(|_| "GPU".into()), gpu_mb, cuda: None, compute: None, ram_mb: 32_000, cores: 16, usable: if ok { Ok("cuda".into()) } else { Err("no CUDA".into()) } }
+    }
+
+    #[test]
+    fn by_the_gpu_found() {
+        let none = recommend(&hw(None, false));
+        assert!(!none.use_gpu && none.gpu_budget_mb == 0 && none.pages_together == 2);
+        // a GPU this build cannot use counts as none
+        assert!(!recommend(&hw(Some(24_000), false)).use_gpu);
+        let eight = recommend(&hw(Some(8188), true));
+        assert_eq!((eight.gpu_budget_mb, eight.tokens_per_pass, eight.pages_together, eight.files_per_batch), (6400, 8192, 8, 8));
+        let big = recommend(&hw(Some(24_576), true));
+        assert_eq!((big.tokens_per_pass, big.pages_together), (16384, 16));
+        let small = recommend(&hw(Some(4096), true));
+        assert_eq!((small.tokens_per_pass, small.pages_together, small.context_paragraphs), (2048, 2, 4));
     }
 }
 

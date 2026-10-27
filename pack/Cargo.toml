@@ -2,5 +2,9 @@
 name = "pack"
 version = "0.1.0"
 edition = "2021"
-description = "Builds Augmented View: the crate to WebAssembly, its bindings stored inside the .wasm, optionally copied to the vault"
+description = "Builds a plugin: its crate to WebAssembly, its bindings written into main.js (and kept in the .wasm for workers), optionally copied to a vault or written as release assets with its program and SHA-256"
 publish = false
+
+[dependencies]
+# The service builds' SHA-256 in a release (scholar: the settings tab checks a download against it), <https://docs.rs/sha2>.
+sha2 = "0.10"
