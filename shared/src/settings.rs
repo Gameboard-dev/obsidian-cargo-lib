@@ -45,36 +45,15 @@ pub fn render_with(
 ) {
     let el = get(tab, "containerEl");
     call!(el, empty);
+    call!(get(&el, "classList"), remove, "setting-contents-layout");
     let setting = get(obsidian, "Setting");
-    // a tab with several sections opens with their contents: a link to each, which scrolls to its heading
-    let heads: Vec<&str> = rows.iter().filter(|r| matches!(r.3, Ctl::Head)).map(|r| r.1).collect();
-    let targets: std::rc::Rc<std::cell::RefCell<Vec<JsValue>>> = Default::default();
-    if heads.len() >= 3 {
-        let doc = get(&crate::js::global(), "document");
-        let c = new(&setting, &[el.clone()]);
-        // not "Settings contents": Obsidian's plugin guidelines ask for no "settings" in a settings tab's headings
-        call!(call!(c, setName, "Contents"), setHeading);
-        let list = call!(doc, createElement, "div");
-        set(&list, "className", "setting-contents");
-        for (i, name) in heads.iter().enumerate() {
-            let a = call!(doc, createElement, "a");
-            set(&a, "textContent", *name);
-            set(&a, "href", "#");
-            let t = targets.clone();
-            call!(a, addEventListener, "click", f1(move |e| {
-                call!(e, preventDefault);
-                if let Some(h) = t.borrow().get(i) {
-                    call!(h, scrollIntoView, crate::js::obj! { behavior: "smooth", block: "start" });
-                }
-                JsValue::UNDEFINED
-            }));
-            call!(list, appendChild, a);
-            if i + 1 < heads.len() {
-                call!(list, appendChild, call!(doc, createTextNode, " \u{b7} "));
-            }
-        }
-        call!(get(&c, "descEl"), appendChild, list);
-    }
+    // a tab with several sections opens with their contents: a link to each, which scrolls to its heading. Filled
+    // once the tab is drawn, so that headings a plugin adds after these rows (Quarry's keys, say) are listed too.
+    let nav = call!(get(&crate::js::global(), "document"), createElement, "nav");
+    set(&nav, "className", "setting-contents");
+    call!(el, appendChild, nav.clone());
+    let tab_el = el.clone();
+    crate::js::timeout(0.0, move || contents(&tab_el, &nav));
     for (key, name, desc, ctl) in rows {
         let (key, s) = (*key, new(&setting, &[el.clone()]));
         call!(s, setName, *name);
@@ -86,10 +65,7 @@ pub fn render_with(
             JsValue::UNDEFINED
         };
         match ctl {
-            Ctl::Head => {
-                call!(s, setHeading);
-                targets.borrow_mut().push(get(&s, "settingEl"));
-            }
+            Ctl::Head => _ = call!(s, setHeading),
             Ctl::Note => {}
             Ctl::Link(url) => {
                 let a = call!(get(&crate::js::global(), "document"), createElement, "a");
@@ -135,4 +111,49 @@ pub fn render_with(
             call!(s, setDisabled, true);
         }
     }
+}
+
+/// Fill `nav` with a link to every heading in the settings tab `el`, when it has three or more. The tab gets the
+/// class `setting-contents-layout`; a plugin's styles.css may then set the contents beside the settings, in view as
+/// they scroll (see quarry/styles.css). Without those rules the links show in a line above the settings.
+fn contents(el: &JsValue, nav: &JsValue) {
+    // the tab was drawn again, or closed, before this ran
+    if get(nav, "isConnected") != JsValue::TRUE {
+        return;
+    }
+    let heads = call!(el, querySelectorAll, ".setting-item-heading");
+    let n = get(&heads, "length").as_f64().unwrap_or(0.0) as u32;
+    if n < 3 {
+        call!(nav, remove);
+        return;
+    }
+    let doc = get(&crate::js::global(), "document");
+    let title = call!(doc, createElement, "div");
+    set(&title, "className", "setting-contents-title");
+    // not "Settings contents": Obsidian's plugin guidelines ask for no "settings" in a settings tab's headings
+    set(&title, "textContent", "Contents");
+    call!(nav, appendChild, title);
+    let links = call!(doc, createElement, "div");
+    set(&links, "className", "setting-contents-links");
+    for i in 0..n {
+        let head = call!(heads, item, i);
+        let name = call!(head, querySelector, ".setting-item-name");
+        let a = call!(doc, createElement, "a");
+        set(&a, "textContent", if name.is_null() { String::new() } else { str(&get(&name, "textContent")) });
+        set(&a, "href", "#");
+        call!(a, addEventListener, "click", f1(move |e| {
+            call!(e, preventDefault);
+            call!(head, scrollIntoView, crate::js::obj! { behavior: "smooth", block: "start" });
+            JsValue::UNDEFINED
+        }));
+        call!(links, appendChild, a);
+        if i + 1 < n {
+            let sep = call!(doc, createElement, "span");
+            set(&sep, "className", "setting-contents-sep");
+            set(&sep, "textContent", " \u{b7} ");
+            call!(links, appendChild, sep);
+        }
+    }
+    call!(nav, appendChild, links);
+    call!(get(el, "classList"), add, "setting-contents-layout");
 }
