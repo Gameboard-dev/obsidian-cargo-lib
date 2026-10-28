@@ -52,7 +52,8 @@ pub fn render_with(
     if heads.len() >= 3 {
         let doc = get(&crate::js::global(), "document");
         let c = new(&setting, &[el.clone()]);
-        call!(call!(c, setName, "Settings contents"), setHeading);
+        // not "Settings contents": Obsidian's plugin guidelines ask for no "settings" in a settings tab's headings
+        call!(call!(c, setName, "Contents"), setHeading);
         let list = call!(doc, createElement, "div");
         set(&list, "className", "setting-contents");
         for (i, name) in heads.iter().enumerate() {
