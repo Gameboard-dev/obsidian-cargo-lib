@@ -20,17 +20,20 @@ pub fn token_from(source: impl Fn() -> Option<String> + Send + Sync + 'static) {
     _ = TOKEN.set(Box::new(source));
 }
 
-/// The Hugging Face token, when one is set and not blank.
+/// The Hugging Face token, when one is set and not blank: the server's own source (`token_from`), else the environment
+/// variable `HF_TOKEN`, as Hugging Face's own tools read it
+/// (<https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hftoken>).
 pub fn token() -> Option<String> {
-    TOKEN.get().and_then(|f| f()).filter(|t| !t.trim().is_empty())
+    let set = TOKEN.get().and_then(|f| f()).or_else(|| std::env::var("HF_TOKEN").ok());
+    set.filter(|t| !t.trim().is_empty())
 }
 
 /// What to say when the Hub refuses a download (401 or 403): the model is likely gated.
 pub fn refused(what: &str, status: u16, sent_token: bool) -> String {
     let fix = if sent_token {
-        "the Hugging Face token set in the settings (Keys → Hugging Face) was not accepted: check it, and that you accepted the model's terms on its Hugging Face page"
+        "the Hugging Face token (the environment variable HF_TOKEN) was not accepted: check it, and that you accepted the model's terms on its Hugging Face page"
     } else {
-        "the model may need a Hugging Face token: accept its terms on its Hugging Face page, then set a read token (https://huggingface.co/settings/tokens) in the settings (Keys → Hugging Face)"
+        "the model may need a Hugging Face token: accept its terms on its Hugging Face page, make a read token (https://huggingface.co/settings/tokens), and set it as the environment variable HF_TOKEN in the terminal before running the download command again"
     };
     format!("downloading {what}: Hugging Face refused it (HTTP {status}); {fix}")
 }
