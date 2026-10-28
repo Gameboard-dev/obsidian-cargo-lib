@@ -1,4 +1,4 @@
-# obsidian-kit
+# obsidian-cargo-lib
 
 A Rust workspace for Obsidian plugins written in Rust and compiled to WebAssembly, with no JavaScript tooling: each plugin
 ships an 18-line `main.js` that loads its `.wasm` and hands it Obsidian, and the `.wasm` carries its own wasm-bindgen
@@ -21,7 +21,7 @@ workspace:
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129     # must match the wasm-bindgen crate
-git clone https://github.com/Gameboard-dev/obsidian-kit && cd obsidian-kit
+git clone https://github.com/Gameboard-dev/obsidian-cargo-lib && cd obsidian-cargo-lib
 git clone https://github.com/Gameboard-dev/latex latex
 cargo run -p pack --release -- latex --deploy <vault>/.obsidian/plugins/latex
 ```
