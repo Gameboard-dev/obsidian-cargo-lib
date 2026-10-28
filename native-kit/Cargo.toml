@@ -14,7 +14,8 @@ links = "native-kit"
 # phase 2). `cuda`: NVIDIA's readings and the CUDA checks. `metal`: Apple's GPU. With none, the CPU only.
 [features]
 candle = ["dep:candle-core", "models"]
-# `models`: finding model files in the Hugging Face cache, or downloading them.
+# `models`: finding model files in the Hugging Face cache or the server's own (it never downloads them); ureq for
+# hw::claims (asking the other local services to free the GPU).
 models = ["dep:ureq"]
 cuda = ["dep:nvml-wrapper", "dep:libloading", "candle-core?/cuda"]
 metal = ["candle-core?/metal"]
@@ -29,6 +30,5 @@ nvml-wrapper = { version = "0.13", optional = true }
 libloading = { version = "0.8", optional = true }
 # Memory and CPU use of the machine and the server (<https://docs.rs/sysinfo>).
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-# Downloads of models the machine lacks, with the operating system's certificate store
-# (<https://docs.rs/ureq/latest/ureq/tls/enum.RootCerts.html>).
+# HTTP to the other local services (hw::claims, <https://docs.rs/ureq>).
 ureq = { version = "3", features = ["platform-verifier"], optional = true }
