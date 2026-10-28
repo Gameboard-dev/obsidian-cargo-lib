@@ -12,7 +12,9 @@
 //!   variable `<PLUGIN>_DEPLOY`, e.g. AUGMENTED_VIEW_DEPLOY). Servers are not copied: point the plugin's settings at them.
 //! - `--release DIR` writes the release's assets into DIR: main.js, manifest.json and styles.css, the only files
 //!   Obsidian installs from a release. A main.js with the line `const WASM = null;` gets the module there, base64-encoded
-//!   (so does a deployed one), and the .wasm is then not needed beside it.
+//!   (so does a deployed one), and the .wasm is then not needed beside it. A built program (Quarry's service) is
+//!   released with its SHA-256 and its licences (the plugin's LICENSE and `licences/<kind>.txt`); without them the
+//!   release fails.
 //! - Nothing is regenerated when the compiled module is unchanged (its hash is kept in target/pack/<plugin>.stamp).
 //!
 //! WebAssembly SIMD (simd128) is on for every plugin: every runtime they meet has it (Obsidian's Electron, Chrome/Edge
@@ -142,15 +144,31 @@ fn main() {
     let inlined = main_js.contains("const WASM = \"");
     if let Some(i) = args.iter().position(|a| a == "--release") {
         let dir = args.get(i + 1).filter(|d| !d.starts_with("--")).cloned().unwrap_or_else(|| panic!("--release needs a folder"));
+        // A plugin's program (Quarry's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
+        // its `.sha256`, for a release named `<plugin>-<kind>-v<version>`.
+        let built = server.join("target/release").join(&exe);
+        // The program's licences go with it, or there is no release (checked before anything is written): the plugin's
+        // LICENSE and the third-party licences of the program's crates and code, `<plugin>/licences/<kind>.txt`
+        // (Quarry's licences/generate.py writes them).
+        let licences = [
+            (plugin.join("LICENSE"), format!("{name}-{kind}-LICENSE.txt")),
+            (plugin.join("licences").join(format!("{kind}.txt")), format!("{name}-{kind}-THIRD-PARTY-LICENSES.txt")),
+        ];
+        if built.exists() {
+            for (from, _) in &licences {
+                assert!(from.exists(), "no release: {} is missing, and the {kind} cannot ship without its licences (Quarry: python licences/generate.py)", from.display());
+            }
+        }
         fs::create_dir_all(&dir).unwrap();
         fs::write(Path::new(&dir).join("main.js"), &main_js).unwrap();
         for f in ["manifest.json", "styles.css"] {
             fs::copy(plugin.join(f), Path::new(&dir).join(f)).unwrap();
         }
-        // A plugin's program (Quarry's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
-        // its `.sha256`, for a release named `<plugin>-<kind>-v<version>`.
-        let built = server.join("target/release").join(&exe);
         if built.exists() {
+            for (from, to) in &licences {
+                fs::copy(from, Path::new(&dir).join(to)).unwrap();
+                println!("{to}");
+            }
             use sha2::Digest;
             let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
                 ("windows", "x86_64") => "windows-x64",
@@ -163,8 +181,7 @@ fn main() {
             let bytes = fs::read(&built).unwrap();
             let hash: String = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
             fs::write(Path::new(&dir).join(&asset), &bytes).unwrap();
-            fs::write(Path::new(&dir).join(format!("{asset}.sha256")), format!("{hash}  {asset}
-")).unwrap();
+            fs::write(Path::new(&dir).join(format!("{asset}.sha256")), format!("{hash}  {asset}\n")).unwrap();
             println!("{asset}: SHA-256 {hash} (publish both under the release {name}-{kind}-v<version>)");
         }
         println!("release assets in {dir}{}", if inlined { " (module inlined in main.js)" } else { "" });

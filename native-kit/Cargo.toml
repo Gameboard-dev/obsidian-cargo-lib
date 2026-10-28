@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "What the plugins' native servers share: the hardware (device choice with reasons, readings, GPU pacing, fallbacks)"
 publish = false
+license = "MIT"
 # Its build script passes the CUDA libraries a server must delay-load on to that server's build script, which links it
 # (DEP_NATIVE_KIT_DELAYLOAD, <https://doc.rust-lang.org/cargo/reference/build-scripts.html#the-links-manifest-key>):
 # link arguments from a dependency's build script do not reach the binary.

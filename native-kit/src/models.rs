@@ -7,8 +7,32 @@
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde_json::json;
+
+type TokenSource = Box<dyn Fn() -> Option<String> + Send + Sync>;
+static TOKEN: OnceLock<TokenSource> = OnceLock::new();
+
+/// Where a Hugging Face token comes from, for gated models: the server sets it once (Quarry's from its keychain), and
+/// it is asked at each download, sent as `Authorization: Bearer` and never kept or logged. Unset, downloads go without.
+pub fn token_from(source: impl Fn() -> Option<String> + Send + Sync + 'static) {
+    _ = TOKEN.set(Box::new(source));
+}
+
+fn token() -> Option<String> {
+    TOKEN.get().and_then(|f| f()).filter(|t| !t.trim().is_empty())
+}
+
+/// What to say when the Hub refuses a download (401 or 403): the model is likely gated.
+fn refused(what: &str, status: u16, sent_token: bool) -> String {
+    let fix = if sent_token {
+        "the Hugging Face token set in the settings (Keys → Hugging Face) was not accepted: check it, and that you accepted the model's terms on its Hugging Face page"
+    } else {
+        "the model may need a Hugging Face token: accept its terms on its Hugging Face page, then set a read token (https://huggingface.co/settings/tokens) in the settings (Keys → Hugging Face)"
+    };
+    format!("downloading {what}: Hugging Face refused it (HTTP {status}); {fix}")
+}
 
 /// The default cache folder for a server named `name`: the operating system's per-user cache (Windows `%LOCALAPPDATA%`,
 /// macOS `~/Library/Caches`, elsewhere `$XDG_CACHE_HOME` or `~/.cache`).
@@ -57,7 +81,16 @@ pub fn download(url: &str, dest: &Path, what: &str) -> Result<(), String> {
     let e = |x: std::io::Error| format!("downloading {what}: {x}");
     let tls = ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::PlatformVerifier).build();
     let agent: ureq::Agent = ureq::Agent::config_builder().tls_config(tls).build().into();
-    let mut res = agent.get(url).call().map_err(|x| format!("downloading {what}: {x}"))?;
+    // the token goes to huggingface.co only: ureq drops the header on a redirect to the file's CDN
+    let token = token();
+    let mut req = agent.get(url);
+    if let Some(t) = &token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    let mut res = req.call().map_err(|x| match x {
+        ureq::Error::StatusCode(s @ (401 | 403)) => refused(what, s, token.is_some()),
+        x => format!("downloading {what}: {x}"),
+    })?;
     let size = res.body().content_length();
     std::fs::create_dir_all(dest.parent().unwrap_or(Path::new("."))).map_err(e)?;
     let part = dest.with_extension("part");
