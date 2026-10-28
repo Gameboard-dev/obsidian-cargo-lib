@@ -14,7 +14,7 @@ workspace:
 
 | Plugin | Repository |
 |---|---|
-| Augmented View | <https://github.com/Gameboard-dev/obsidian-augmented-view> (clone as `augmented-view`) |
+| Augmented View | <https://github.com/Gameboard-dev/obsidian-augmented-view> |
 | Dictionary and Synonyms | <https://github.com/Gameboard-dev/dictionary-and-synonyms> |
 | LaTeX | <https://github.com/Gameboard-dev/latex> |
 
