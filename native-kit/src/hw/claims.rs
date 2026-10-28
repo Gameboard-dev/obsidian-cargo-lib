@@ -137,7 +137,7 @@ pub fn room(service: &str, what: &str, need_mb: u64, mode: &str) -> Room {
 /// A service's plugin as the user knows it.
 pub fn display_name(service: &str) -> &str {
     match service {
-        "scholar" => "Scholar",
+        "quarry" => "Quarry",
         "augmented-view" => "Augmented View",
         s => s,
     }
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn claims_are_checked() {
-        assert!(file_of("scholar").is_some() && file_of("../x").is_none() && file_of("a b").is_none());
+        assert!(file_of("quarry").is_some() && file_of("../x").is_none() && file_of("a b").is_none());
         let ok = json!({ "service": "x", "port": 8766, "pid": 1, "mb": 900, "release": "/gpu/release" });
         assert_eq!(parse(&ok).map(|c| c.release), Some("/gpu/release".into()));
         for bad in ["http://evil/", "//evil", "/../x", "x"] {

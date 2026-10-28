@@ -66,7 +66,7 @@ pub use crate::{call, obj};
 /// An Obsidian view (`ItemView`) of type `kind`, titled `title`, with the icon `icon`, built as a JavaScript
 /// `class extends ItemView` builds one. Obsidian's View constructor reads getViewType() from the object it is making,
 /// so the three methods are on its prototype before the constructor runs: given to the object afterwards, the leaf
-/// opens empty (Scholar's views did, 2026-10-27). The new.target is ItemView bound (a constructor) carrying that
+/// opens empty (Quarry's views did, 2026-10-27). The new.target is ItemView bound (a constructor) carrying that
 /// prototype, so no code is made from a string. onOpen and onClose may be set on the result.
 /// (<https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect/construct>)
 pub fn item_view(obs: &JsValue, leaf: JsValue, kind: &str, title: &str, icon: &str) -> JsValue {

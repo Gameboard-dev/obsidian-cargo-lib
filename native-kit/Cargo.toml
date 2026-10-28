@@ -9,7 +9,7 @@ publish = false
 # link arguments from a dependency's build script do not reach the binary.
 links = "native-kit"
 
-# `candle`: placing models on candle's devices and pacing their GPU work (Augmented View's server; Scholar's from its
+# `candle`: placing models on candle's devices and pacing their GPU work (Augmented View's server; Quarry's from its
 # phase 2). `cuda`: NVIDIA's readings and the CUDA checks. `metal`: Apple's GPU. With none, the CPU only.
 [features]
 candle = ["dep:candle-core", "models"]

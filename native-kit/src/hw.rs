@@ -1,7 +1,7 @@
 //! The hardware the models run on: what this computer has and whether this build can use its GPU (`probe`), which
 //! device each model gets and why (every fallback is noted with its reason, so the plugin can say whether CUDA is in use
 //! and what it fell back from), whether a model fits, how busy the GPU and the computer are, and the pacing that keeps
-//! the GPU at or below the load limit. Moved here from Augmented View's server (2026-10-25) so Scholar's service uses
+//! the GPU at or below the load limit. Moved here from Augmented View's server (2026-10-25) so Quarry's service uses
 //! the same code; the device placement and pacing that need candle are in `device` (feature `candle`).
 //!
 //! References: candle's devices (<https://docs.rs/candle-core/latest/candle_core/enum.Device.html>), NVIDIA's management

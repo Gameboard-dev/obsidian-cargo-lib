@@ -1,15 +1,15 @@
 # The Rust Obsidian plugins in this folder, one workspace: the shared crate (shared/), each plugin's WebAssembly crate,
 # and the build tool (pack/). Dependencies are compiled once for all of them, in target/. Augmented View's model server
-# (augmented-view/server) and Scholar's service (scholar/service) are native programs with their own workspaces and
-# build settings; both use native-kit/ (the hardware), also outside this workspace. scholar/schema (the settings,
-# shared by Scholar's plugin and service) is a member.
+# (augmented-view/server) and Quarry's service (quarry/service) are native programs with their own workspaces and
+# build settings; both use native-kit/ (the hardware), also outside this workspace. quarry/schema (the settings,
+# shared by Quarry's plugin and service) is a member.
 #
 # This folder is the repository obsidian-kit; each plugin is a repository of its own, cloned into it (README.md), and
 # whichever plugins are present are members.
 [workspace]
 resolver = "2"
 members = ["shared", "pack", "*/core", "*/schema", "*/note"]
-exclude = ["augmented-view/server", "native-kit", "scholar/service"]
+exclude = ["augmented-view/server", "native-kit", "quarry/service"]
 
 # Builds (https://doc.rust-lang.org/cargo/reference/profiles.html). Dependencies are compiled once and kept in target/;
 # only a changed crate is rebuilt.

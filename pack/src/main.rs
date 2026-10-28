@@ -5,7 +5,7 @@
 //! file. Writes `<plugin>/<plugin_with_underscores>.wasm` (augmented_view.wasm, dictionary_and_synonyms.wasm).
 //!
 //! - `--fast` builds with the `fast` profile (thin LTO, incremental; ../Cargo.toml) instead of `release`.
-//! - `--server` also builds the plugin's server (`<plugin>/server`, Augmented View's; `<plugin>/service`, Scholar's) for this
+//! - `--server` also builds the plugin's server (`<plugin>/server`, Augmented View's; `<plugin>/service`, Quarry's) for this
 //!   computer: CUDA, or Metal on macOS.
 //! - `--cpu-server` also builds its CPU-only version, into server/target/cpu (Augmented View's fallback, `cpuServer`).
 //! - `--deploy DIR` copies the plugin into DIR, a vault's `.obsidian/plugins/<plugin>` (or the folder in the environment
@@ -123,7 +123,7 @@ fn main() {
     }
 
     // A server: its own workspace (server/.cargo/config.toml, and any machine settings in a parent folder), in
-    // `<plugin>/server` (Augmented View's) or `<plugin>/service` (Scholar's), built as `<plugin>-server` or `-service`.
+    // `<plugin>/server` (Augmented View's) or `<plugin>/service` (Quarry's), built as `<plugin>-server` or `-service`.
     let kind = if plugin.join("service").exists() { "service" } else { "server" };
     let server = plugin.join(kind);
     let exe = format!("{name}-{kind}{}", std::env::consts::EXE_SUFFIX);
@@ -147,7 +147,7 @@ fn main() {
         for f in ["manifest.json", "styles.css"] {
             fs::copy(plugin.join(f), Path::new(&dir).join(f)).unwrap();
         }
-        // A plugin's program (Scholar's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
+        // A plugin's program (Quarry's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
         // its `.sha256`, for a release named `<plugin>-<kind>-v<version>`.
         let built = server.join("target/release").join(&exe);
         if built.exists() {

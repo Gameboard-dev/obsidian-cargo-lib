@@ -24,7 +24,7 @@ pub struct Asking<'a> {
     pub decline: &'a str,
 }
 
-/// "Augmented View", "Scholar and Augmented View", or the services in general when none was named.
+/// "Augmented View", "Quarry and Augmented View", or the services in general when none was named.
 pub fn holders_text(holders: &[String]) -> String {
     match holders.len() {
         0 => "Other GPU services of your plugins".into(),
@@ -66,11 +66,11 @@ mod tests {
     #[test]
     fn names_and_words() {
         assert_eq!(holders_text(&[]), "Other GPU services of your plugins");
-        assert_eq!(holders_text(&["Scholar".into(), "Augmented View".into()]), "Scholar and Augmented View");
-        let a = Asking { plugin: "Scholar", models: "its search models", task: "the search", on_cpu: "Search on the CPU", decline: "Cancel" };
+        assert_eq!(holders_text(&["Quarry".into(), "Augmented View".into()]), "Quarry and Augmented View");
+        let a = Asking { plugin: "Quarry", models: "its search models", task: "the search", on_cpu: "Search on the CPU", decline: "Cancel" };
         let held = Shortage { need_mb: 4000, free_mb: 900, others_mb: 3000, holders: vec!["Augmented View".into()] };
         let (title, text, yes, no) = wording(&held, &a);
-        assert_eq!(title, "Scholar: not enough GPU memory");
+        assert_eq!(title, "Quarry: not enough GPU memory");
         assert!(text.contains("Augmented View holds about 3000 MB") && yes == "Stop Augmented View and use the GPU" && no == "Search on the CPU");
         let none = Shortage { others_mb: 0, ..held };
         let (_, text, yes, no) = wording(&none, &a);

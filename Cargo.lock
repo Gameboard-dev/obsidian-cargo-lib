@@ -399,6 +399,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "quarry-core"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "obsidian-kit",
+ "quarry-note",
+ "quarry-schema",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "quarry-note"
+version = "0.1.0"
+dependencies = [
+ "fancy-regex",
+ "regex",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
+ "zip",
+]
+
+[[package]]
+name = "quarry-schema"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -456,41 +491,6 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
-name = "scholar-core"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "obsidian-kit",
- "scholar-note",
- "scholar-schema",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "scholar-note"
-version = "0.1.0"
-dependencies = [
- "fancy-regex",
- "regex",
- "serde",
- "serde_json",
- "unicode-normalization",
- "zip",
-]
-
-[[package]]
-name = "scholar-schema"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "serde"
