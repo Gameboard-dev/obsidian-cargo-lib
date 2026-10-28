@@ -13,8 +13,8 @@
 //! - `--release DIR` writes the release's assets into DIR: main.js, manifest.json and styles.css, the only files
 //!   Obsidian installs from a release. A main.js with the line `const WASM = null;` gets the module there, base64-encoded
 //!   (so does a deployed one), and the .wasm is then not needed beside it. A built program (Quarry's service) is
-//!   released with its SHA-256 and its licences (the plugin's LICENSE and `licences/<kind>.txt`); without them the
-//!   release fails.
+//!   released with its SHA-256 (a `.sha256` file, for users to check their download by hand) and its licences (the
+//!   plugin's LICENSE and `licences/<kind>.txt`, which users keep beside the program); without them the release fails.
 //! - Nothing is regenerated when the compiled module is unchanged (its hash is kept in target/pack/<plugin>.stamp).
 //!
 //! WebAssembly SIMD (simd128) is on for every plugin: every runtime they meet has it (Obsidian's Electron, Chrome/Edge
@@ -144,8 +144,10 @@ fn main() {
     let inlined = main_js.contains("const WASM = \"");
     if let Some(i) = args.iter().position(|a| a == "--release") {
         let dir = args.get(i + 1).filter(|d| !d.starts_with("--")).cloned().unwrap_or_else(|| panic!("--release needs a folder"));
-        // A plugin's program (Quarry's service), as its settings tab downloads it: `<plugin>-<kind>-<platform>[.exe]` and
-        // its `.sha256`, for a release named `<plugin>-<kind>-v<version>`.
+        // A plugin's program (Quarry's service), as the user downloads it from the release page (a plugin may not
+        // install its own dependencies, so its settings tab only names the files and links the page):
+        // `<plugin>-<kind>-<platform>[.exe]` and its `.sha256`, a published checksum the user can compare by hand
+        // (`certutil -hashfile <file> SHA256`, `shasum -a 256 <file>`), for a release named `<plugin>-<kind>-v<version>`.
         let built = server.join("target/release").join(&exe);
         // The program's licences go with it, or there is no release (checked before anything is written): the plugin's
         // LICENSE and the third-party licences of the program's crates and code, `<plugin>/licences/<kind>.txt`
