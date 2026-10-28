@@ -17,6 +17,9 @@ candle = ["dep:candle-core", "models"]
 # `models`: finding model files in the Hugging Face cache or the server's own (it never downloads them); ureq for
 # hw::claims (asking the other local services to free the GPU).
 models = ["dep:ureq"]
+# `download`: a server's download command (run by the user in a terminal, never by a plugin): resumed, checksummed
+# downloads of model files (download.rs).
+download = ["models", "dep:sha1", "dep:sha2"]
 cuda = ["dep:nvml-wrapper", "dep:libloading", "candle-core?/cuda"]
 metal = ["candle-core?/metal"]
 
@@ -32,3 +35,7 @@ libloading = { version = "0.8", optional = true }
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # HTTP to the other local services (hw::claims, <https://docs.rs/ureq>).
 ureq = { version = "3", features = ["platform-verifier"], optional = true }
+# Checksums of downloaded model files: SHA-256 (Git LFS files) and Git's blob SHA-1 (<https://docs.rs/sha2>,
+# <https://docs.rs/sha1>); the versions Quarry's service uses.
+sha1 = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }

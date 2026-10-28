@@ -2,7 +2,8 @@
 //! (<https://huggingface.co/docs/huggingface_hub/guides/manage-cache>), else from the server's own cache folder. Nothing
 //! here downloads: Obsidian's developer policies forbid a plugin that installs its own dependencies, so a model file
 //! that is on neither disk is an error that names it (`MISSING`), and the server downloads model files only when the
-//! user runs its download command (Quarry: `quarry-service --download all`; its service's model_files.rs), into `ours`.
+//! user runs its download command (Quarry: `quarry-service --download all`, its service's model_files.rs; Augmented
+//! View: `augmented-view-server --download all`, with `download`), into `ours`.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
