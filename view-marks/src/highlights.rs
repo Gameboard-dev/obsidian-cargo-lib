@@ -1,8 +1,8 @@
-//! Copy with Augmented View highlights (docs/colour-codes.md, "Copying with highlights"): a selection's Markdown with
-//! each coloured passage wrapped in a marker, `~={colour, category}text=~` (the default) or
-//! `<mark data-colour="…" data-category="…">text</mark>`, for the clipboard. [`write_range`] is a pure function of the
-//! note's text, the selection and the marks the worker computed for it (the same ones the editor draws): the note is
-//! never changed, and nothing is written but the clipboard.
+//! Copy with highlights: a selection's Markdown with each coloured passage wrapped in a marker,
+//! `~={colour, category}text=~` (the default) or `<mark data-colour="…" data-category="…">text</mark>`, for the
+//! clipboard. [`write_range`] is a pure function of the note's text, the selection and the plugin's marks for it (the
+//! same ones the editor draws): the note is never changed, and nothing is written but the clipboard ([`crate::copy`]
+//! puts it there).
 //!
 //! Markers never break the Markdown around them:
 //! - nothing is marked in front matter, code blocks, maths blocks, comment blocks, dividers, embeds or block-id lines;
@@ -38,7 +38,7 @@ impl Format {
     }
 }
 
-/// A coloured passage: [from, to) in the note's UTF-16 offsets (the worker's marks), the colour's index in the list
+/// A coloured passage: [from, to) in the note's UTF-16 offsets (as the editor's marks), the colour's index in the list
 /// given to [`write`], and whether it is a phrase colour (drawn inside a sentence's).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Mark {
@@ -634,7 +634,7 @@ fn text_out(text: &str, a: usize, e: usize, escape: bool, atoms: &[(usize, usize
     out
 }
 
-/// UTF-16 offsets (the worker's, JavaScript's) to byte offsets in the text.
+/// UTF-16 offsets (JavaScript's, CodeMirror's) to byte offsets in the text.
 struct Utf16 {
     /// Each character that is not ASCII: (its UTF-16 offset, its byte offset, its length in UTF-16 units and in
     /// bytes). Between two of them bytes and UTF-16 units go up together (ASCII).

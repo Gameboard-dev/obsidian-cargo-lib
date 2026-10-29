@@ -4,10 +4,12 @@ A Rust workspace for Obsidian plugins written in Rust and compiled to WebAssembl
 ships an 18-line `main.js` that loads its `.wasm` and hands it Obsidian, and the `.wasm` carries its own wasm-bindgen
 bindings in a custom section.
 
-- `shared/`: the crate `obsidian-kit`, compiled into each plugin: calling JavaScript by name through `Reflect` (`call!`,
-  `obj!`, closures, futures, timers) and a settings tab declared as data (`shared/README.md`).
-- `pack/`: the build: compiles a plugin to WebAssembly (with SIMD), runs wasm-bindgen, stores the bindings in the
-  `.wasm`, optionally builds a plugin's native server, and copies the plugin into a vault.
+| Folder | Crate | What it is |
+|---|---|---|
+| `shared/` | `obsidian-kit` | Compiled into each plugin: calling JavaScript by name through `Reflect` (`call!`, `obj!`, closures, futures, timers) and a settings tab declared as data (`shared/README.md`). |
+| `view-marks/` | `view-marks` | For a plugin that colours or marks a note's text by per-paragraph or per-sentence scores: the paragraphs, which ones the views want scored, the marks in the editor and Reading view as the text comes into view, hover pop-ups, and copying a selection with its marks (`view-marks/README.md`). |
+| `native-kit/` | `native-kit` | For a plugin's native server (outside the workspace): the hardware, each model's device and fallbacks, checked downloads. |
+| `pack/` | `pack` | The build: compiles a plugin to WebAssembly (with SIMD), runs wasm-bindgen, stores the bindings in the `.wasm`, optionally builds a plugin's native server, and copies the plugin into a vault. |
 
 The plugins are repositories of their own, cloned into this folder; every `*/core` crate present is a member of the
 workspace:

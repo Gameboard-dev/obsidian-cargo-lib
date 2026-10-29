@@ -1,12 +1,10 @@
-//! Reading view shows rendered text, not the note's source, so the chosen spans are found in a rendered block by their
-//! visible text (the server's `v`: markup blanked, spaces collapsed). A long span that a rendered citation or link
-//! interrupts is found by its first and last few words instead. The result is a list of segments, each with the kinds
-//! over it as a bit mask, so overlapping kinds become one wrapper with several classes.
-
-use crate::pick::Span;
+//! Reading view shows rendered text, not the note's source, so a passage marked in the source is found in a rendered
+//! block by its visible text (markup blanked, spaces collapsed). A long passage that a rendered citation or link
+//! interrupts is found by its first and last few words instead. The result is a list of segments, each with the
+//! classes over it as a bit mask, so overlapping classes become one wrapper with several classes ([`segments`]).
 
 /// A block's text with runs of white space collapsed, and where each kept character sits in the original (UTF-16).
-struct Norm {
+pub struct Norm {
     chars: Vec<char>,
     lower: Vec<char>,
     start16: Vec<u32>,
@@ -45,6 +43,32 @@ fn normalize(s: &str) -> Norm {
     n
 }
 
+impl Norm {
+    /// A rendered block's text (or a passage's visible text), normalised once for any number of [`Norm::find_all`].
+    pub fn new(s: &str) -> Norm {
+        normalize(s)
+    }
+
+    /// Where `needle` (a passage's visible text) sits in this block: [start, end) in the block's UTF-16 offsets, the
+    /// first place only, or every place when `every`.
+    pub fn find_all(&self, needle: &str, every: bool) -> Vec<(u32, u32)> {
+        let n = normalize(needle);
+        let mut out = Vec::new();
+        let mut from = 0;
+        while let Some((a, e)) = locate(self, &n, from) {
+            if e == 0 || e > self.chars.len() {
+                break;
+            }
+            out.push((self.start16[a], self.end16[e - 1]));
+            if !every {
+                break;
+            }
+            from = e;
+        }
+        out
+    }
+}
+
 fn find(hay: &[char], needle: &[char], from: usize) -> Option<usize> {
     if needle.is_empty() || needle.len() > hay.len() {
         return None;
@@ -73,34 +97,8 @@ fn locate(block: &Norm, needle: &Norm, from: usize) -> Option<(usize, usize)> {
     (end - a <= needle.chars.len() * 2 + 40).then_some((a, end))
 }
 
-/// The segments to wrap in a rendered block: (start16, end16, mask of kinds), sorted, not overlapping. `found`: ranges
-/// the worker found in the block itself, with their kinds (the user's own terms, bold::block_ranges; citations,
-/// rules.rs); `rules`: the kinds that cut a
-/// sentence's colour (pick::cut).
-pub fn block_segments(block: &str, spans: &[&Span], chosen: &[(usize, bool)], found: &[(u32, u32, u8)], rules: u32) -> Vec<(u32, u32, u32)> {
-    let b = normalize(block);
-    let mut ranges: Vec<(u32, u32, u8)> = found.to_vec();
-    for &(i, every) in chosen {
-        let sp = spans[i];
-        let n = normalize(&sp.v);
-        let mut from = 0;
-        while let Some((a, e)) = locate(&b, &n, from) {
-            if e == 0 || e > b.chars.len() {
-                break;
-            }
-            ranges.push((b.start16[a], b.end16[e - 1], sp.k));
-            if !every {
-                break;
-            }
-            from = e;
-        }
-    }
-    crate::pick::tidy(&mut ranges);
-    crate::pick::cut(&mut ranges, rules);
-    segments(&ranges)
-}
-
-/// Overlapping ranges of different kinds become segments carrying every kind over them.
+/// Overlapping ranges (start, end, class) of different classes become segments carrying every class over them:
+/// (start, end, mask of classes), sorted, not overlapping. Classes are 0 to 31.
 pub fn segments(ranges: &[(u32, u32, u8)]) -> Vec<(u32, u32, u32)> {
     let mut cuts: Vec<u32> = ranges.iter().flat_map(|&(a, e, _)| [a, e]).collect();
     cuts.sort_unstable();
@@ -120,6 +118,28 @@ pub fn segments(ranges: &[(u32, u32, u8)]) -> Vec<(u32, u32, u32)> {
     out
 }
 
+/// [`segments`] for ranges with a strength step (start, end, class, strength 0 to 5): each segment as a
+/// [`crate::Seg`], with the greatest strength of the ranges over it.
+pub fn segments_with_strength(ranges: &[(u32, u32, u8, u8)]) -> Vec<crate::Seg> {
+    let mut cuts: Vec<u32> = ranges.iter().flat_map(|&(a, e, _, _)| [a, e]).collect();
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut out: Vec<crate::Seg> = Vec::new();
+    for w in cuts.windows(2) {
+        let (a, e) = (w[0], w[1]);
+        let over = ranges.iter().filter(|&&(s, t, _, _)| s <= a && t >= e);
+        let (mask, strength) = over.fold((0u32, 0u8), |(m, st), &(_, _, k, s)| (m | (1 << k), st.max(s)));
+        if mask == 0 {
+            continue;
+        }
+        match out.last_mut() {
+            Some(last) if last.to == a && last.mask == mask && last.strength == strength => last.to = e,
+            _ => out.push(crate::Seg { from: a, to: e, mask, strength }),
+        }
+    }
+    out
+}
+
 /// Lower-case words of a text with markup characters dropped, to tell which source paragraph a rendered block shows.
 pub fn plain_words(s: &str, n: usize) -> Vec<String> {
     s.split(|c: char| !c.is_alphanumeric() && c != '\'')
@@ -132,37 +152,47 @@ pub fn plain_words(s: &str, n: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pick::{MAIN, STRESS as PHRASE, TERM};
-
-    fn sp(k: u8, v: &str) -> Span {
-        Span { k, w: 1.0, at: vec![], v: v.into() }
-    }
 
     #[test]
-    fn overlapping_kinds_become_masked_segments() {
+    fn overlapping_classes_become_masked_segments() {
         let block = "Plain bold part and link text end.";
-        let spans = [sp(MAIN, "Plain bold part and link text"), sp(TERM, "bold part"), sp(PHRASE, "part and link")];
-        let got = block_segments(block, &spans.iter().collect::<Vec<_>>(), &[(0, false), (1, false), (2, false)], &[], 0);
+        let b = Norm::new(block);
+        let mut ranges = Vec::new();
+        for (what, k) in [("Plain bold part and link text", 3u8), ("bold part", 0), ("part and link", 1)] {
+            ranges.extend(b.find_all(what, false).into_iter().map(|(a, e)| (a, e, k)));
+        }
         let m = |ks: &[u8]| ks.iter().fold(0u32, |m, k| m | (1 << k));
-        assert_eq!(got, vec![(0, 6, m(&[MAIN])), (6, 11, m(&[MAIN, TERM])), (11, 15, m(&[MAIN, TERM, PHRASE])),
-            (15, 24, m(&[MAIN, PHRASE])), (24, 29, m(&[MAIN]))]);
+        assert_eq!(segments(&ranges), vec![(0, 6, m(&[3])), (6, 11, m(&[3, 0])), (11, 15, m(&[3, 0, 1])), (15, 24, m(&[3, 1])), (24, 29, m(&[3]))]);
     }
 
     #[test]
     fn found_despite_spacing_case_and_an_interrupting_citation() {
         let block = "Oates  calls it\ninaccurate (Oates, 2006, p. 287) to equate positivism with quantitative research.";
-        let got = block_segments(block, &[&sp(TERM, "Calls it inaccurate")], &[(0, false)], &[], 0);
-        assert_eq!(got.len(), 1);
+        let b = Norm::new(block);
+        let got = b.find_all("Calls it inaccurate", false);
         assert_eq!(&block[got[0].0 as usize..got[0].1 as usize], "calls it\ninaccurate");
         let long = "Oates calls it inaccurate to equate positivism with quantitative research";
-        let got = block_segments(block, &[&sp(MAIN, long)], &[(0, false)], &[], 0);
+        let got = b.find_all(long, false);
         assert_eq!(&block[got[0].0 as usize..got[0].1 as usize], &block[..block.len() - 1]);
+        assert!(b.find_all("not there", true).is_empty());
     }
 
     #[test]
     fn every_occurrence_and_utf16() {
-        let block = "😀 theory and theory again";
-        let got = block_segments(block, &[&sp(TERM, "theory")], &[(0, true)], &[], 0);
-        assert_eq!(got.iter().map(|g| (g.0, g.1)).collect::<Vec<_>>(), vec![(3, 9), (14, 20)]); // the emoji is 2 units
+        let b = Norm::new("😀 theory and theory again");
+        assert_eq!(b.find_all("theory", true), vec![(3, 9), (14, 20)]); // the emoji is 2 units
+        assert_eq!(b.find_all("theory", false), vec![(3, 9)]);
+    }
+
+    #[test]
+    fn strength_is_the_greatest_over_a_segment() {
+        let segs = segments_with_strength(&[(0, 10, 2, 3), (4, 6, 5, 5), (10, 12, 2, 3), (12, 14, 2, 4)]);
+        let s = |from, to, mask, strength| crate::Seg { from, to, mask, strength };
+        assert_eq!(segs, vec![s(0, 4, 1 << 2, 3), s(4, 6, (1 << 2) | (1 << 5), 5), s(6, 12, 1 << 2, 3), s(12, 14, 1 << 2, 4)]);
+    }
+
+    #[test]
+    fn plain_words_drop_markup() {
+        assert_eq!(plain_words("The **second** [[x|link]], isn't it", 4), ["the", "second", "x", "link"]);
     }
 }

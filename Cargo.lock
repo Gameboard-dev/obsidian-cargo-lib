@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "augmented-view-core"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "js-sys",
  "obsidian-kit",
@@ -28,22 +28,10 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "view-marks",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "xxhash-rust",
-]
-
-[[package]]
-name = "authenticity-core"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "obsidian-kit",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -121,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "dictionary-and-synonyms-core"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "backon",
  "js-sys",
@@ -600,6 +588,18 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "view-marks"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "obsidian-kit",
+ "serde",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "xxhash-rust",
+]
 
 [[package]]
 name = "walkdir"
