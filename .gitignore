@@ -4,6 +4,7 @@ target/
 # Each plugin is a repository of its own, cloned into this folder (README.md).
 /*/
 !/shared/
+!/view-marks/
 !/pack/
 
 # The workspace's shared native crate (hardware readings and device choice for the plugins' servers).

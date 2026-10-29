@@ -1,0 +1,15 @@
+[package]
+name = "view-marks"
+version = "0.1.0"
+edition = "2021"
+description = "Marks over a note's text in Obsidian, for plugins in Rust: paragraphs and offsets, the marks drawn in the editor and Reading view as the text comes into view, hover pop-ups, and copying a selection with its marks"
+publish = false
+license = "MIT"
+
+[dependencies]
+obsidian-kit = { path = "../shared" }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+serde = { version = "1", features = ["derive"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
