@@ -175,9 +175,7 @@ pub fn display_name(service: &str) -> &str {
 /// up to `wait` for `need_mb` (plus the margin) to be free. Whether it is.
 pub fn release_others(service: &str, need_mb: u64, wait: std::time::Duration) -> bool {
     for c in others(service) {
-        let url = format!("http://127.0.0.1:{}{}", c.port, c.release);
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(5))).build().into();
-        match agent.post(&url).send_empty() {
+        match post_loopback(c.port, &c.release, std::time::Duration::from_secs(5)) {
             Ok(_) => super::note(format!("asked a service on port {} to free its {} MB of GPU memory", c.port, c.mb)),
             Err(e) => super::note(format!("a service on port {} did not free its GPU memory: {e}", c.port)),
         }
@@ -194,9 +192,61 @@ pub fn release_others(service: &str, need_mb: u64, wait: std::time::Duration) ->
     }
 }
 
+/// An empty POST to `path` of a service on this computer (127.0.0.1 only: no address is taken from anywhere else),
+/// over plain HTTP/1.1 with std's TcpStream, so the claims need no HTTP library and no TLS. `timeout` bounds the
+/// connection and each read and write; the answer's status code, or why there is none. No redirect is followed.
+pub fn post_loopback(port: u16, path: &str, timeout: std::time::Duration) -> Result<u16, String> {
+    use std::io::{Read, Write};
+    // a plain absolute path: no scheme, host, query of another form, white space or control characters
+    let plain = path.starts_with('/') && !path.contains("//") && !path.contains("..") && path.len() <= 200 && path.bytes().all(|b| b.is_ascii_graphic());
+    if !plain || port == 0 {
+        return Err(format!("not a path on this computer's service: {path:?}"));
+    }
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let mut s = std::net::TcpStream::connect_timeout(&addr, timeout).map_err(|e| e.to_string())?;
+    s.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
+    s.set_write_timeout(Some(timeout)).map_err(|e| e.to_string())?;
+    let req = format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    s.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
+    // the status line is all that is read (at most 512 bytes): "HTTP/1.1 200 OK"
+    let mut head = Vec::with_capacity(64);
+    let mut buf = [0u8; 64];
+    while !head.contains(&b'\n') && head.len() < 512 {
+        let n = s.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        head.extend_from_slice(&buf[..n]);
+    }
+    let line = String::from_utf8_lossy(&head);
+    let status = line.split_whitespace().nth(1).and_then(|c| c.parse::<u16>().ok()).filter(|_| line.starts_with("HTTP/1."));
+    status.ok_or_else(|| "the service did not answer in HTTP".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_release_call_is_plain_http_on_loopback() {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let t = std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut got = vec![0u8; 512];
+            let n = s.read(&mut got).unwrap();
+            s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            String::from_utf8_lossy(&got[..n]).into_owned()
+        });
+        assert_eq!(post_loopback(port, "/gpu/release", std::time::Duration::from_secs(5)), Ok(200));
+        let req = t.join().unwrap();
+        assert!(req.starts_with("POST /gpu/release HTTP/1.1\r\n") && req.contains("Content-Length: 0\r\n"), "{req}");
+        // nothing but a plain path on 127.0.0.1
+        for bad in ["http://evil/x", "//evil", "/a b", "/a\r\nX: y", "/../x", "x"] {
+            assert!(post_loopback(port, bad, std::time::Duration::from_secs(1)).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn claims_are_checked() {

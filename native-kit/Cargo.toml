@@ -16,12 +16,13 @@ links = "native-kit"
 candle = ["dep:candle-core", "models"]
 # `models`: finding model files in the Hugging Face cache or the server's own (it never downloads them).
 models = ["claims"]
-# `claims`: hw::claims, the GPU claims the local services share, and asking the others to free the GPU (ureq), for a
-# program that runs no model of its own (one that starts another program which does) as well as for the servers.
-claims = ["dep:ureq"]
+# `claims`: hw::claims, the GPU claims the local services share, and asking the others to free the GPU (plain HTTP to
+# 127.0.0.1 with std: no HTTP library, no TLS), for a program that runs no model of its own (one that starts another
+# program which does) as well as for the servers.
+claims = []
 # `download`: a server's download command (run by the user in a terminal, never by a plugin): resumed, checksummed
-# downloads of model files (download.rs).
-download = ["models", "dep:sha1", "dep:sha2"]
+# downloads of model files over HTTPS (download.rs): the only part that brings ureq and its TLS.
+download = ["models", "dep:ureq", "dep:sha1", "dep:sha2"]
 cuda = ["dep:nvml-wrapper", "dep:libloading", "candle-core?/cuda"]
 metal = ["candle-core?/metal"]
 
@@ -35,7 +36,7 @@ nvml-wrapper = { version = "0.13", optional = true }
 libloading = { version = "0.8", optional = true }
 # Memory and CPU use of the machine and the server (<https://docs.rs/sysinfo>).
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-# HTTP to the other local services (hw::claims, <https://docs.rs/ureq>).
+# HTTPS for the download command (download.rs, <https://docs.rs/ureq>).
 ureq = { version = "3", features = ["platform-verifier"], optional = true }
 # Checksums of downloaded model files: SHA-256 (Git LFS files) and Git's blob SHA-1 (<https://docs.rs/sha2>,
 # <https://docs.rs/sha1>); the versions Quarry's service uses.
