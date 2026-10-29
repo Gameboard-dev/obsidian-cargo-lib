@@ -20,9 +20,28 @@ use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 #[cfg(feature = "candle")]
 mod device;
 #[cfg(feature = "candle")]
-pub use device::{bind, free_gpu_mb, gpu_free_mb, paced, paced_at, place, place_within, GPU_MARGIN_MB};
-#[cfg(feature = "candle")]
+pub use device::{bind, free_gpu_mb, gpu_free_mb, paced, paced_at, place, place_within};
+#[cfg(feature = "claims")]
 pub mod claims;
+
+/// GPU memory left free for the display, other programs and the models' working memory.
+pub const GPU_MARGIN_MB: u64 = 300;
+
+/// The computer's logical CPU cores (at least 1).
+pub fn cpu_cores() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get())
+}
+
+/// How busy the computer's CPU is now, all programs together (0 to 100): two readings `sysinfo`'s least interval apart
+/// (about 200 ms; the call waits that long).
+pub fn cpu_busy() -> f32 {
+    sys(|s| {
+        s.refresh_cpu_usage();
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        s.refresh_cpu_usage();
+        s.global_cpu_usage().clamp(0.0, 100.0)
+    })
+}
 
 /// The GPU's free memory now, in MB (NVIDIA's, all programs together), or None without one.
 pub fn device_free_mb() -> Option<u64> {

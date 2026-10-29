@@ -6,9 +6,7 @@ use std::time::Instant;
 
 use candle_core::Device;
 
-use super::{available_ram_mb, cuda_libraries, gpu_name, note, nvidia, GATE, LIMIT, MB};
-
-pub const GPU_MARGIN_MB: u64 = 300; // left free for the display, other programs and the models' working memory
+use super::{available_ram_mb, cuda_libraries, gpu_name, note, nvidia, GATE, GPU_MARGIN_MB, LIMIT, MB};
 
 /// The GPU, opened once: CUDA, else Metal; or why there is none.
 fn gpu() -> &'static Result<(Device, String), String> {

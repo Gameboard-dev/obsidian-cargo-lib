@@ -14,9 +14,11 @@ links = "native-kit"
 # phase 2). `cuda`: NVIDIA's readings and the CUDA checks. `metal`: Apple's GPU. With none, the CPU only.
 [features]
 candle = ["dep:candle-core", "models"]
-# `models`: finding model files in the Hugging Face cache or the server's own (it never downloads them); ureq for
-# hw::claims (asking the other local services to free the GPU).
-models = ["dep:ureq"]
+# `models`: finding model files in the Hugging Face cache or the server's own (it never downloads them).
+models = ["claims"]
+# `claims`: hw::claims, the GPU claims the local services share, and asking the others to free the GPU (ureq), for a
+# program that runs no model of its own (one that starts another program which does) as well as for the servers.
+claims = ["dep:ureq"]
 # `download`: a server's download command (run by the user in a terminal, never by a plugin): resumed, checksummed
 # downloads of model files (download.rs).
 download = ["models", "dep:sha1", "dep:sha2"]

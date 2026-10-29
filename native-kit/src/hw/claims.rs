@@ -5,6 +5,9 @@
 //! holds and the path that frees it), and removes it when it lets the memory go or stops. A claim whose process is
 //! gone is ignored and removed. Releasing is an HTTP POST to `127.0.0.1:<port><path>` of that service: nothing is run
 //! and no address comes from anywhere but these files, which only the user's own services write.
+//!
+//! A claim may carry a `name`, the plugin's name as the user knows it, for the question the other services ask about
+//! the GPU (`hold_as`; `Claim::display`); without one, the services of this workspace are named by `display_name`.
 
 use std::path::PathBuf;
 
@@ -14,6 +17,8 @@ use serde_json::{json, Value};
 #[derive(Clone, Debug, PartialEq)]
 pub struct Claim {
     pub service: String,
+    /// The plugin's name as the user knows it, when the claim gives one (a plain name: letters, digits, spaces, `-`).
+    pub name: Option<String>,
     pub port: u16,
     pub pid: u32,
     pub mb: u64,
@@ -34,12 +39,34 @@ fn file_of(service: &str) -> Option<PathBuf> {
 
 /// This service holds `mb` of GPU memory, freed by POST `release` on `port`.
 pub fn hold(service: &str, port: u16, mb: u64, release: &str) {
+    hold_as(service, None, port, mb, release);
+}
+
+/// The same, with the plugin's name as the user knows it (`name`), for the others' question about the GPU. The claim
+/// is this process's (`std::process::id`): a program that holds the GPU through a program it started names itself and
+/// removes the claim when that program stops.
+pub fn hold_as(service: &str, name: Option<&str>, port: u16, mb: u64, release: &str) {
     let Some(f) = file_of(service) else { return };
     if let Some(d) = f.parent() {
         _ = std::fs::create_dir_all(d);
     }
-    let v = json!({ "service": service, "port": port, "pid": std::process::id(), "mb": mb, "release": release });
+    let mut v = json!({ "service": service, "port": port, "pid": std::process::id(), "mb": mb, "release": release });
+    if let Some(n) = name.filter(|n| plain_name(n)) {
+        v["name"] = json!(n);
+    }
     _ = std::fs::write(f, v.to_string());
+}
+
+/// A name fit to show: 1 to 40 letters, digits, spaces or `-`.
+fn plain_name(n: &str) -> bool {
+    !n.is_empty() && n.chars().count() <= 40 && n.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-')
+}
+
+impl Claim {
+    /// The service as the user knows it: the claim's own name, else `display_name`.
+    pub fn display(&self) -> &str {
+        self.name.as_deref().unwrap_or_else(|| display_name(&self.service))
+    }
 }
 
 /// This service holds nothing on the GPU any more.
@@ -65,6 +92,7 @@ fn parse(v: &Value) -> Option<Claim> {
     }
     Some(Claim {
         service: v["service"].as_str()?.to_string(),
+        name: v["name"].as_str().filter(|n| plain_name(n)).map(str::to_string),
         port: u16::try_from(v["port"].as_u64()?).ok().filter(|p| *p > 0)?,
         pid: u32::try_from(v["pid"].as_u64()?).ok()?,
         mb: v["mb"].as_u64().unwrap_or(0),
@@ -101,7 +129,7 @@ pub fn shortage(service: &str, what: &str, need_mb: u64) -> Option<Value> {
     let others = others(service);
     let held: u64 = others.iter().map(|c| c.mb).sum();
     // the user's own plugins by name (user, 2026-10-27); anything else that holds memory is not named
-    let holders: Vec<&str> = others.iter().map(|c| display_name(&c.service)).collect();
+    let holders: Vec<&str> = others.iter().map(Claim::display).collect();
     Some(json!({ "what": what, "need_mb": need_mb + super::GPU_MARGIN_MB, "free_mb": free, "others_mb": held, "others": others.len(), "holders": holders }))
 }
 
@@ -179,5 +207,23 @@ mod tests {
             assert!(parse(&json!({ "service": "x", "port": 1, "pid": 1, "release": bad })).is_none(), "{bad}");
         }
         assert!(parse(&json!({ "service": "x", "port": 70000, "pid": 1 })).is_none());
+    }
+
+    #[test]
+    fn a_claim_s_own_name_is_shown() {
+        let named = parse(&json!({ "service": "some-plugin", "name": "Some Plugin", "port": 8790, "pid": 1, "mb": 100 })).unwrap();
+        assert_eq!((named.name.as_deref(), named.display()), (Some("Some Plugin"), "Some Plugin"));
+        let plain = parse(&json!({ "service": "quarry", "port": 8766, "pid": 1 })).unwrap();
+        assert_eq!((plain.name.as_deref(), plain.display()), (None, "Quarry"), "the workspace's own names without one");
+        let odd = parse(&json!({ "service": "x", "name": "<b>evil</b>", "port": 1, "pid": 1 })).unwrap();
+        assert_eq!((odd.name.as_deref(), odd.display()), (None, "x"), "a name that is not plain is not shown");
+        assert!(plain_name("Augmented View") && !plain_name("") && !plain_name(&"x".repeat(41)));
+    }
+
+    #[test]
+    fn readings_without_a_model_library() {
+        assert!(crate::hw::cpu_cores() >= 1);
+        let busy = crate::hw::cpu_busy();
+        assert!((0.0..=100.0).contains(&busy), "{busy}");
     }
 }
