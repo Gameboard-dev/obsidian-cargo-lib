@@ -94,7 +94,10 @@ fn main() {
     let name = args.first().filter(|a| !a.starts_with("--")).cloned().expect("which plugin? cargo run -p pack --release -- <plugin folder, e.g. augmented-view>");
     let flag = |f: &str| args.iter().any(|a| a == f);
     let profile = if flag("--fast") { "fast" } else { "release" };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    // where pack is now (cargo run sets CARGO_MANIFEST_DIR), not where it was compiled: a renamed workspace folder would
+    // otherwise leave a stale path in the cached binary ("The directory name is invalid")
+    let manifest = std::env::var_os("CARGO_MANIFEST_DIR").map(std::path::PathBuf::from).unwrap_or_else(|| env!("CARGO_MANIFEST_DIR").into());
+    let root = manifest.parent().unwrap();
     let plugin = root.join(&name);
     let (krate, stem) = (format!("{name}-core"), name.replace('-', "_"));
     let out = root.join("target/pack").join(&name);

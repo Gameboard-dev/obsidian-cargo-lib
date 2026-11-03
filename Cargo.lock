@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "augmented-view-core"
-version = "0.6.4"
+version = "0.6.6"
 dependencies = [
  "js-sys",
  "obsidian-kit",
@@ -32,6 +32,29 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "xxhash-rust",
+]
+
+[[package]]
+name = "authenticity-core"
+version = "0.3.3"
+dependencies = [
+ "authenticity-similar",
+ "js-sys",
+ "obsidian-kit",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "view-marks",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "authenticity-similar"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -109,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "dictionary-and-synonyms-core"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "backon",
  "js-sys",
@@ -241,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "latex-core"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "js-sys",
  "miniz_oxide",
@@ -343,6 +366,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "view-marks",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -353,6 +377,7 @@ version = "0.1.0"
 dependencies = [
  "fancy-regex",
  "quarry-note",
+ "quarry-schema",
  "regex",
  "serde",
  "serde_json",

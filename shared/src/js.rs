@@ -77,7 +77,14 @@ pub fn item_view(obs: &JsValue, leaf: JsValue, kind: &str, title: &str, icon: &s
         set(&proto, name, Closure::<dyn Fn() -> JsValue>::new(move || JsValue::from(v.as_str())).into_js_value());
     }
     let target = class.unchecked_ref::<Function>().bind0(&JsValue::NULL);
-    set(&target, "prototype", proto);
+    // Defined, not assigned: a bound function inherits from the class, and since Obsidian 1.15 ItemView is a native
+    // class, whose `prototype` is read-only, so an assignment was silently refused, construction failed ("this.getViewType
+    // is not a function"), and every view opened as an empty tab
+    let desc = Object::new();
+    set(&desc, "value", proto);
+    set(&desc, "writable", true);
+    set(&desc, "configurable", true);
+    let _ = Reflect::define_property(&target, &JsValue::from_str("prototype"), &desc);
     Reflect::construct_with_new_target(class.unchecked_ref(), &Array::of1(&leaf), &target).unwrap_or_else(|_| new(&class, &[leaf]))
 }
 
