@@ -276,6 +276,7 @@ dependencies = [
  "serde_json",
  "shlex",
  "wasm-bindgen",
+ "word-count",
  "xxhash-rust",
 ]
 
@@ -715,6 +716,10 @@ checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
 ]
+
+[[package]]
+name = "word-count"
+version = "0.1.0"
 
 [[package]]
 name = "xxhash-rust"

@@ -1,0 +1,10 @@
+[package]
+name = "word-count"
+version = "0.1.0"
+edition = "2021"
+description = "Word counts of a LaTeX chapter, by what the page prints: used by the LaTeX plugin and by Quarry's command-line tools, so that both give the same counts"
+publish = false
+license = "MIT"
+
+# Nothing but the standard library: the counter is used by the plugin (WebAssembly) and by native command-line tools.
+[dependencies]
