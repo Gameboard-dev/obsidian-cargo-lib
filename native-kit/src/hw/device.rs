@@ -113,3 +113,26 @@ pub fn paced_at<R>(device: &Device, limit: u32, f: impl FnOnce() -> R) -> R {
 pub fn gpu_free_mb() -> Option<u64> {
     gpu().as_ref().ok().and_then(|(d, _)| free_gpu_mb(d))
 }
+
+/// The GPU memory that dropped models and tensors freed, handed back to the driver now, so that other programs (and a
+/// model loading next) find it free. cudarc frees with `cuMemFreeAsync` into the device's memory pool, which gives
+/// memory back only at a later synchronisation; once the last model is gone nothing runs to cause one, and the memory
+/// stays reserved (2026-11-08: 4.4 GB still held after Quarry's search models were let go). So the context is
+/// synchronised and the pool trimmed to nothing (`cuMemPoolTrimTo`). Every model of a process shares the device's
+/// primary context and its default pool. Returns the free memory before and after, in MB, for the caller's log;
+/// None without a CUDA GPU (on Metal the memory is the computer's own) or when it could not be done (the reason).
+pub fn give_back() -> Result<Option<(u64, u64)>, String> {
+    #[cfg(feature = "cuda")]
+    if let Ok((Device::Cuda(d), _)) = gpu() {
+        use candle_core::cuda::cudarc::driver::result;
+        let before = free_gpu_mb(&Device::Cuda(d.clone())).unwrap_or(0);
+        let ctx = d.cuda_stream().context().clone();
+        ctx.synchronize().map_err(|e| format!("the GPU could not be synchronised ({e})"))?;
+        // SAFETY: the device is the context's own (a CUdevice CUDA gave), and its default pool lives as long as it
+        unsafe { result::device::get_default_mem_pool(ctx.cu_device()).and_then(|pool| result::mem_pool::trim_to(pool, 0)) }
+            .map_err(|e| format!("the GPU's memory pool could not be trimmed ({e})"))?;
+        let after = free_gpu_mb(&Device::Cuda(d.clone())).unwrap_or(0);
+        return Ok(Some((before, after)));
+    }
+    Ok(None)
+}
